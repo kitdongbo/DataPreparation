@@ -1,12 +1,13 @@
 from DataGetter import PatientGlucoseMeasurement
 import numpy
+from datetime import datetime, date, time, timedelta
 
 class ExtremaFilter:
     @staticmethod
     def _Sign(i_val):
         if i_val == 0:
             return 0
-        return i_val / abs(i_val)
+        return i_val / abs(i_val) # how about (i_val>0)-(i_val<0) ?
 
     @staticmethod
     def _IsExtremalValue(i_prev, i_val, i_next):
@@ -15,13 +16,30 @@ class ExtremaFilter:
         return False
 
     @staticmethod
-    def ExtractExtremalMeasurements(measurements):
+    def _WhichExtremalValue(i_prev, i_val, i_next):
+        # "None" --- not an extrema
+        # "Max" --- maximum
+        # "Min" --- minimum
+        prev_sign = ExtremaFilter._Sign(i_val - i_prev)
+        next_sign = ExtremaFilter._Sign(i_next - i_val)
+        if prev_sign == next_sign:
+            return "None"
+        if prev_sign > next_sign:
+            return "Max"
+        if prev_sign < next_sign:
+            return "Min"
+
+    @staticmethod
+    def FindExtremalMeasurements(measurements):
+        # indexes, types
+        # type in {"Max", Min}
         just_glucose_level = map(lambda x: x.GetGlucoseLevel(), measurements)
-        predicate_values = map(lambda x, pre_x, after_x: ExtremaFilter._IsExtremalValue(pre_x, x, after_x),
-                               just_glucose_level[1:-1], just_glucose_level[2:], just_glucose_level[:-2])
-        indexed_extremal_measurements = filter(lambda index_x: predicate_values[index_x[0]], enumerate(measurements[1:-1]))
-        extremal_measurements = map(lambda x: x[1], indexed_extremal_measurements)
-        return extremal_measurements
+        extrema_views = map(lambda x, pre_x, after_x: ExtremaFilter._WhichExtremalValue(pre_x, x, after_x),
+                            just_glucose_level[1:-1], just_glucose_level[2:], just_glucose_level[:-2])
+        extrema_indexes_types = filter(lambda i_x: i_x[1] != "None", enumerate(extrema_views))
+        extremal_indexes = map(lambda i_t: i_t[0]+1, extrema_indexes_types)
+        extrema_types = map(lambda i_t: i_t[1], extrema_indexes_types)
+        return extremal_indexes, extrema_types
 
 
 class SeriesModifier:
@@ -50,9 +68,99 @@ class SeriesModifier:
         y = numpy.convolve(w/w.sum(), s, mode='same')
         smoothed_gl = y[window_len-1:-window_len+1]
 
-        # update measurements measurements
+        # update measurements
         result = map(lambda m, new_gl: PatientGlucoseMeasurement(i_pt_id=m.GetPtId(), i_datetime=m.GetDateTime(),
                                                                  i_glucose_level=new_gl),
                      measurements, smoothed_gl)
         return result
 
+
+class FeatureExtractor:
+    class RiseFeature:
+        def __init__(self, i_max, i_before_max, i_after_max):
+            self.m_max = i_max
+            self.m_before_max = i_before_max
+            self.m_after_max = i_after_max
+
+        def GetMax(self):
+            return self.m_max
+
+        def GetBeforeMax(self):
+            return self.m_before_max
+
+        def GetAfterMax(self):
+            return self.m_after_max
+
+        def GetRiseSpeed(self):
+            dt = self.m_max.GetDateTime() - self.m_before_max.GetDateTime()
+            dg = self.m_max.GetGlucoseLevel() - self.m_before_max.GetGlucoseLevel()
+            return dg / dt.hour()
+
+        def GetFallSpeed(self):
+            dt = self.m_after_max.GetDateTime() - self.m_max.GetDateTime()
+            dg = self.m_max.GetGlucoseLevel() - self.m_after_max.GetGlucoseLevel()
+            return dg / dt.hour()
+
+
+    @staticmethod
+    def ExtractFeatures(all_patient_measurements):
+        # patient_all_measurements: array(array(continuous_measurements))
+        # return: array(array(day_features))
+
+        time_separator = datetime.datetime.strptime("05:00:00", "%H:%M:%S")
+        list_of_continuous_day_measurements = [] # array(array(measurements_while_day))
+        for continuous_measurement in all_patient_measurements:
+            day_measurements = FeatureExtractor.SeparateMeasurementsForDays(continuous_measurement, time_separator)
+            if not day_measurements:
+                list_of_continuous_day_measurements.append(day_measurements)
+
+        consumption_schedule = FeatureExtractor.CalculateUsualFoodConsumptionTimes(list_of_continuous_day_measurements)
+
+        list_of_continuous_day_features = []
+        for continuous_day_measurements in list_of_continuous_day_measurements:
+            continuous_day_features = []
+            for day_measurements in continuous_day_measurements:
+                day_features = FeatureExtractor.ExtractDayFeatures(consumption_schedule, day_measurements)
+                if day_features:
+                    continuous_day_features.append(day_features)
+            if continuous_day_features:
+                list_of_continuous_day_features.append(continuous_day_features)
+        return list_of_continuous_day_features
+
+    @staticmethod
+    def SeparateMeasurementsForDays(continuous_measurement, time_separator):
+        # continuous_measurement: array of measurements
+        # time_separator: datetime.time that separate measurements for days
+        # return: array(full_day_measurement)
+
+        measurements_for_days = []
+        if not continuous_measurement:
+            return measurements_for_days
+
+        one_day_measurements = []
+        date_time_to = datetime.combine(continuous_measurement[0].GetDateTime().date(), time_separator) + timedelta(days=1)
+        for measurement in continuous_measurement:
+            if measurement.GetDateTime() <= date_time_to:
+                one_day_measurements.append(measurement)
+            else:
+                measurements_for_days.append(one_day_measurements)
+                one_day_measurements = [measurement]
+                date_time_to += timedelta(days=1)
+        if one_day_measurements:
+            measurements_for_days.append(one_day_measurements)
+
+        # may be needed filter out not full front and back days measurements
+        # may be needed check if middle days measurements are full
+        return measurements_for_days
+
+    @staticmethod
+    def CalculateUsualFoodConsumptionTimes(list_of_continuous_day_measurements):
+        usual_food_consumption_time = []
+        # TODO
+        return usual_food_consumption_time
+
+    @staticmethod
+    def ExtractDayFeatures(patient_context, measurements):
+        day_features = []
+        # TODO
+        return day_features

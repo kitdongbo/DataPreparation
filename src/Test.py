@@ -16,7 +16,7 @@ measurements = DataGetter.GetAllMeasurements(src_path,
                                              i_glucose_level_column_num=3)
 
 smooth_measurements = SeriesModifier.Smooth(measurements)
-extremal_measurements = ExtremaFilter.ExtractExtremalMeasurements(smooth_measurements)
+extremal_indexes, bla = ExtremaFilter.FindExtremalMeasurements(smooth_measurements)
 
 # original
 gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), measurements))
@@ -26,8 +26,8 @@ datetime = np.array(map(lambda x: x.GetDateTime(), measurements))
 sm_gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), smooth_measurements))
 
 # extrema
-ex_date_time = np.array(map(lambda x: x.GetDateTime(), extremal_measurements))
-ex_gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), extremal_measurements))
+ex_date_time = np.array(map(lambda x: measurements[x].GetDateTime(), extremal_indexes))
+ex_gl_level = np.array(map(lambda x: measurements[x].GetGlucoseLevel(), extremal_indexes))
 
 # plot settings
 fig = plt.figure()
@@ -38,6 +38,6 @@ ax.xaxis.set_major_formatter(dmyhm)
 plt.xticks(rotation='vertical')
 # plot data
 plt.plot(datetime, gl_level, c='b')
-plt.plot(datetime, sm_gl_level, c='g')
+# plt.plot(datetime, sm_gl_level, c='g')
 plt.plot(ex_date_time, ex_gl_level, 'ro')
 plt.show()

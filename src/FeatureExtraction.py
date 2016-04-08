@@ -101,6 +101,21 @@ class FeatureExtractor:
             dg = self.m_max.GetGlucoseLevel() - self.m_after_max.GetGlucoseLevel()
             return dg / dt.hour()
 
+    class DayFeature:
+        def __init__(self, i_rise_features, i_nocturnal_minimum, i_hypo_val=70):
+            self.m_rise_features = i_rise_features
+            self.m_nocturnal_minimum = i_nocturnal_minimum
+            self.m_hypo_val = i_hypo_val
+
+        def GetRiseFeatures(self):
+            return self.m_rise_features
+
+        def GetNocturnalMinimum(self):
+            return self.m_nocturnal_minimum
+
+        def IsHypoglucemia(self):
+            return self.GetNocturnalMinimum() < self.m_hypo_val
+
 
     @staticmethod
     def ExtractFeatures(all_patient_measurements):
@@ -114,13 +129,13 @@ class FeatureExtractor:
             if not day_measurements:
                 list_of_continuous_day_measurements.append(day_measurements)
 
-        consumption_schedule = FeatureExtractor.CalculateUsualFoodConsumptionTimes(list_of_continuous_day_measurements)
+        consumption_schedule = FeatureExtractor.CalculatePatientSchedule(list_of_continuous_day_measurements)
 
         list_of_continuous_day_features = []
         for continuous_day_measurements in list_of_continuous_day_measurements:
             continuous_day_features = []
             for day_measurements in continuous_day_measurements:
-                day_features = FeatureExtractor.ExtractDayFeatures(consumption_schedule, day_measurements)
+                day_features = FeatureExtractor.ExtractDayFeature(consumption_schedule, day_measurements)
                 if day_features:
                     continuous_day_features.append(day_features)
             if continuous_day_features:
@@ -154,13 +169,26 @@ class FeatureExtractor:
         return measurements_for_days
 
     @staticmethod
-    def CalculateUsualFoodConsumptionTimes(list_of_continuous_day_measurements):
-        usual_food_consumption_time = []
-        # TODO
+    def CalculatePatientSchedule(list_of_continuous_day_measurements):
+        # list_of_continuous_day_measurements: array(array(continuous_measurements))
+        # return: dictionary(time_name, time_value)
+
+        usual_food_consumption_time = {
+            'night-bf': datetime.datetime.strptime("05:00:00", "%H:%M:%S"),
+            'bf-dn': datetime.datetime.strptime("13:00:00", "%H:%M:%S"),
+            'dn-sp': datetime.datetime.strptime("18:00:00", "%H:%M:%S"),
+            'sp-night': datetime.datetime.strptime("23:30:00", "%H:%M:%S")
+        }
+
         return usual_food_consumption_time
 
     @staticmethod
-    def ExtractDayFeatures(patient_context, measurements):
-        day_features = []
-        # TODO
+    def ExtractDayFeature(patient_context, day_measurements):
+        # patient_context: dictionary(time_name, time_value)
+        # day_measurements: array of measurements
+        # return: DayFeature
+
+        rise_features = []
+
+        day_features = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=80)
         return day_features

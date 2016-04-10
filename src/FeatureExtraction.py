@@ -183,12 +183,59 @@ class FeatureExtractor:
         return usual_food_consumption_time
 
     @staticmethod
+    def _ProjectTimeListOnTimeList(time_list, time_separators):
+        # time_list: array(time)
+        # time_separators: array(time)
+        # return: array(index)
+
+        result_indexes = []
+        if (time_list is None) or (time_separators is None):
+            return result_indexes
+        if (len(time_list) == 0) or (len(time_separators) == 0):
+            return result_indexes
+
+        separator_index = 0
+        for index, value in enumerate(time_list):
+            while time_separators[separator_index] < value:
+                result_indexes.append(index)
+                separator_index+=1
+                if separator_index >= len(time_separators):
+                    break
+        while separator_index < len(time_separators):
+            result_indexes.append(len(time_list)-1)
+            separator_index += 1
+        return result_indexes
+
+    @staticmethod
+    def _ExtractRiseFeature(measurements):
+        # TODO: extract max and adjacent mins
+        return None
+
+    @staticmethod
     def ExtractDayFeature(patient_context, day_measurements):
         # patient_context: dictionary(time_name, time_value)
         # day_measurements: array of measurements
         # return: DayFeature
 
-        rise_features = []
+        time_separators = list([patient_context['bf-dn'], patient_context['dn-sp'], patient_context['sp-night']])
+        time_indexes = FeatureExtractor._ProjectTimeListOnTimeList(
+            map(lambda x: x.GetDateTime().time(), day_measurements),
+            time_separators)
 
-        day_features = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=80)
+        if (time_indexes is None) or (len(time_indexes) != len(time_separators)):
+            return None
+
+        rise_features = []
+        index_from = 0
+        for index_to in time_indexes:
+            rise_feature = FeatureExtractor._ExtractRiseFeature(day_measurements[index_from:index_to])
+            if rise_feature:
+                rise_features.append(rise_feature)
+                index_from = index_to
+            else:
+                return None
+
+        nocturnal_minimum = min(map(lambda x: x.GetGlucoseValue(), day_measurements[index_from:]))
+
+        day_features = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minimum)
         return day_features

@@ -1,6 +1,8 @@
 from DataGetter import PatientGlucoseMeasurement
 import numpy
-from datetime import datetime, date, time, timedelta
+import datetime
+import itertools
+
 
 class ExtremaFilter:
     @staticmethod
@@ -122,11 +124,11 @@ class FeatureExtractor:
         # patient_all_measurements: array(array(continuous_measurements))
         # return: array(array(day_features))
 
-        time_separator = datetime.datetime.strptime("05:00:00", "%H:%M:%S")
+        time_separator = datetime.datetime.strptime("05:00:00", "%H:%M:%S").time()
         list_of_continuous_day_measurements = [] # array(array(measurements_while_day))
         for continuous_measurement in all_patient_measurements:
             day_measurements = FeatureExtractor.SeparateMeasurementsForDays(continuous_measurement, time_separator)
-            if not day_measurements:
+            if day_measurements:
                 list_of_continuous_day_measurements.append(day_measurements)
 
         consumption_schedule = FeatureExtractor.CalculatePatientSchedule(list_of_continuous_day_measurements)
@@ -153,14 +155,14 @@ class FeatureExtractor:
             return measurements_for_days
 
         one_day_measurements = []
-        date_time_to = datetime.combine(continuous_measurement[0].GetDateTime().date(), time_separator) + timedelta(days=1)
+        date_time_to = datetime.datetime.combine(continuous_measurement[0].GetDateTime().date(), time_separator) + datetime.timedelta(days=1)
         for measurement in continuous_measurement:
             if measurement.GetDateTime() <= date_time_to:
                 one_day_measurements.append(measurement)
             else:
                 measurements_for_days.append(one_day_measurements)
                 one_day_measurements = [measurement]
-                date_time_to += timedelta(days=1)
+                date_time_to += datetime.timedelta(days=1)
         if one_day_measurements:
             measurements_for_days.append(one_day_measurements)
 
@@ -174,10 +176,10 @@ class FeatureExtractor:
         # return: dictionary(time_name, time_value)
 
         usual_food_consumption_time = {
-            'night-bf': datetime.datetime.strptime("05:00:00", "%H:%M:%S"),
-            'bf-dn': datetime.datetime.strptime("13:00:00", "%H:%M:%S"),
-            'dn-sp': datetime.datetime.strptime("18:00:00", "%H:%M:%S"),
-            'sp-night': datetime.datetime.strptime("23:30:00", "%H:%M:%S")
+            'night-bf': datetime.datetime.strptime("05:00:00", "%H:%M:%S").time(),
+            'bf-dn': datetime.datetime.strptime("13:00:00", "%H:%M:%S").time(),
+            'dn-sp': datetime.datetime.strptime("20:00:00", "%H:%M:%S").time(),
+            'sp-night': datetime.datetime.strptime("23:59:00", "%H:%M:%S").time()
         }
 
         return usual_food_consumption_time
@@ -208,8 +210,39 @@ class FeatureExtractor:
 
     @staticmethod
     def _ExtractRiseFeature(measurements):
-        # TODO: extract max and adjacent mins
-        return None
+        indexes, types = ExtremaFilter.FindExtremalMeasurements(measurements)
+
+        max_index = None
+        for count, index in enumerate(indexes):
+            if types[count] == 'Min':
+                continue
+            measurement = measurements[index]
+            if (not max_index) or (measurements[max_index].GetGlucoseLevel() < measurement.GetGlucoseLevel()):
+                max_index = index
+
+        if not max_index:
+            return None
+
+        left_min_index = None
+        right_min_index = None
+        for count, index in enumerate(indexes):
+            if types[count] == 'Max':
+                continue
+            measurement = measurements[index]
+            if index < max_index:
+                if not left_min_index or left_min_index > measurement.GetGlucoseLevel():
+                    left_min_index = index
+            else:
+                if not right_min_index or right_min_index > measurement.GetGlucoseLevel():
+                    right_min_index = index
+
+        if not left_min_index or not right_min_index:
+            return None
+
+        feature = FeatureExtractor.RiseFeature(measurements[max_index],
+                                               measurements[left_min_index],
+                                               measurements[right_min_index])
+        return feature
 
     @staticmethod
     def ExtractDayFeature(patient_context, day_measurements):
@@ -218,9 +251,17 @@ class FeatureExtractor:
         # return: DayFeature
 
         time_separators = list([patient_context['bf-dn'], patient_context['dn-sp'], patient_context['sp-night']])
-        time_indexes = FeatureExtractor._ProjectTimeListOnTimeList(
-            map(lambda x: x.GetDateTime().time(), day_measurements),
-            time_separators)
+        time_iterator = itertools.cycle(time_separators)
+        current_time = time_iterator.next()
+        time_indexes = []
+        for i in range(0, len(day_measurements) - 1):
+            pre_measurement_datetime = day_measurements[i].GetDateTime()
+            post_measurement_datetime = day_measurements[i + 1].GetDateTime()
+            possible_datetime1 = datetime.datetime.combine(pre_measurement_datetime.date(), current_time)
+            possible_datetime2 = datetime.datetime.combine(post_measurement_datetime.date(), current_time)
+            if ((pre_measurement_datetime <= possible_datetime1 ) and (possible_datetime1 < post_measurement_datetime)) or ((pre_measurement_datetime <= possible_datetime2) and (possible_datetime2 < post_measurement_datetime)):
+                time_indexes.append(i)
+                current_time = time_iterator.next()
 
         if (time_indexes is None) or (len(time_indexes) != len(time_separators)):
             return None

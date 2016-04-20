@@ -1,7 +1,6 @@
 from DataGetter import PatientGlucoseMeasurement
 import numpy
 import datetime
-import itertools
 
 
 class ExtremaFilter:
@@ -131,13 +130,11 @@ class FeatureExtractor:
             if day_measurements:
                 list_of_continuous_day_measurements.append(day_measurements)
 
-        consumption_schedule = FeatureExtractor.CalculatePatientSchedule(list_of_continuous_day_measurements)
-
         list_of_continuous_day_features = []
         for continuous_day_measurements in list_of_continuous_day_measurements:
             continuous_day_features = []
             for day_measurements in continuous_day_measurements:
-                day_features = FeatureExtractor.ExtractDayFeature(consumption_schedule, day_measurements)
+                day_features = FeatureExtractor.ExtractDayFeature(day_measurements)
                 if day_features:
                     continuous_day_features.append(day_features)
             if continuous_day_features:
@@ -171,112 +168,91 @@ class FeatureExtractor:
         return measurements_for_days
 
     @staticmethod
-    def CalculatePatientSchedule(list_of_continuous_day_measurements):
-        # list_of_continuous_day_measurements: array(array(continuous_measurements))
-        # return: dictionary(time_name, time_value)
-
-        usual_food_consumption_time = {
-            'night-bf': datetime.datetime.strptime("05:00:00", "%H:%M:%S").time(),
-            'bf-dn': datetime.datetime.strptime("13:00:00", "%H:%M:%S").time(),
-            'dn-sp': datetime.datetime.strptime("20:00:00", "%H:%M:%S").time(),
-            'sp-night': datetime.datetime.strptime("23:59:00", "%H:%M:%S").time()
-        }
-
-        return usual_food_consumption_time
+    def _IsOkToBeNextMaxMeasurement(i_ms, i_m, i_min_delta):
+        if not i_ms:
+            return True
+        for m in i_ms:
+            this_delta = m.GetDateTime() - i_m.GetDateTime()
+            if abs(this_delta) < i_min_delta:
+                return False
+        return True
 
     @staticmethod
-    def _ProjectTimeListOnTimeList(time_list, time_separators):
-        # time_list: array(time)
-        # time_separators: array(time)
-        # return: array(index)
-
-        result_indexes = []
-        if (time_list is None) or (time_separators is None):
-            return result_indexes
-        if (len(time_list) == 0) or (len(time_separators) == 0):
-            return result_indexes
-
-        separator_index = 0
-        for index, value in enumerate(time_list):
-            while time_separators[separator_index] < value:
-                result_indexes.append(index)
-                separator_index+=1
-                if separator_index >= len(time_separators):
-                    break
-        while separator_index < len(time_separators):
-            result_indexes.append(len(time_list)-1)
-            separator_index += 1
-        return result_indexes
-
-    @staticmethod
-    def _ExtractRiseFeature(measurements):
-        indexes, types = ExtremaFilter.FindExtremalMeasurements(measurements)
-
-        max_index = None
-        for count, index in enumerate(indexes):
-            if types[count] == 'Min':
+    def _GetMinFromTimeRange(measurements, datetime_from, datetime_to):
+        min_measurement = None
+        for measurement in measurements:
+            this_datetime = measurement.GetDateTime()
+            if this_datetime < datetime_from or datetime_to < this_datetime:
                 continue
-            measurement = measurements[index]
-            if (not max_index) or (measurements[max_index].GetGlucoseLevel() < measurement.GetGlucoseLevel()):
-                max_index = index
-
-        if not max_index:
-            return None
-
-        left_min_index = None
-        right_min_index = None
-        for count, index in enumerate(indexes):
-            if types[count] == 'Max':
-                continue
-            measurement = measurements[index]
-            if index < max_index:
-                if not left_min_index or left_min_index > measurement.GetGlucoseLevel():
-                    left_min_index = index
-            else:
-                if not right_min_index or right_min_index > measurement.GetGlucoseLevel():
-                    right_min_index = index
-
-        if not left_min_index or not right_min_index:
-            return None
-
-        feature = FeatureExtractor.RiseFeature(measurements[max_index],
-                                               measurements[left_min_index],
-                                               measurements[right_min_index])
-        return feature
+            if not min_measurement or min_measurement.GetGlucoseLevel() > measurement.GetGlucoseLevel():
+                min_measurement = measurement
+        return min_measurement
 
     @staticmethod
-    def ExtractDayFeature(patient_context, day_measurements):
-        # patient_context: dictionary(time_name, time_value)
+    def _IsMonotonous(measurements):
+        if len(measurements) < 2:
+            return True
+        for i in range(0, len(measurements) - 1):
+            dt_past = measurements[i].GetDateTime()
+            dt_next = measurements[i+1].GetDateTime()
+            if dt_next < dt_past:
+                return False
+        return True
+
+    @staticmethod
+    def _IsFullDay(monotonous_measurements):
+        if not monotonous_measurements:
+            return False
+        first_measurement_dt = monotonous_measurements[0].GetDateTime()
+        last_measurement_dt = monotonous_measurements[-1].GetDateTime()
+        time_delta = last_measurement_dt - first_measurement_dt
+        if (time_delta < datetime.timedelta(hours=25)) and (time_delta > datetime.timedelta(hours=23)):
+            return True
+        return False
+
+    @staticmethod
+    def ExtractDayFeature(day_measurements):
         # day_measurements: array of measurements
         # return: DayFeature
-
-        time_separators = list([patient_context['bf-dn'], patient_context['dn-sp'], patient_context['sp-night']])
-        time_iterator = itertools.cycle(time_separators)
-        current_time = time_iterator.next()
-        time_indexes = []
-        for i in range(0, len(day_measurements) - 1):
-            pre_measurement_datetime = day_measurements[i].GetDateTime()
-            post_measurement_datetime = day_measurements[i + 1].GetDateTime()
-            possible_datetime1 = datetime.datetime.combine(pre_measurement_datetime.date(), current_time)
-            possible_datetime2 = datetime.datetime.combine(post_measurement_datetime.date(), current_time)
-            if ((pre_measurement_datetime <= possible_datetime1 ) and (possible_datetime1 < post_measurement_datetime)) or ((pre_measurement_datetime <= possible_datetime2) and (possible_datetime2 < post_measurement_datetime)):
-                time_indexes.append(i)
-                current_time = time_iterator.next()
-
-        if (time_indexes is None) or (len(time_indexes) != len(time_separators)):
+        if not FeatureExtractor._IsMonotonous(day_measurements) or not FeatureExtractor._IsFullDay(day_measurements):
             return None
 
-        rise_features = []
-        index_from = 0
-        for index_to in time_indexes:
-            rise_feature = FeatureExtractor._ExtractRiseFeature(day_measurements[index_from:index_to])
-            if rise_feature:
-                rise_features.append(rise_feature)
-                index_from = index_to
+        indexes, types = ExtremaFilter.FindExtremalMeasurements(day_measurements)
+
+        max_indexes = map(lambda x: indexes[x], filter(lambda x: types[x] == 'Max', range(0, len(types))))
+        max_measurements = map(lambda x: day_measurements[x], max_indexes)
+        max_measurements.sort(key=lambda m: m.GetGlucoseLevel(), reverse=True)
+        needed_max_count = 3
+        min_distance_between_max = datetime.timedelta(hours=5)
+        fixed_max_measurements = []
+        for measurement in max_measurements:
+            if FeatureExtractor._IsOkToBeNextMaxMeasurement(fixed_max_measurements, measurement, min_distance_between_max):
+                fixed_max_measurements.append(measurement)
+                if len(fixed_max_measurements) == needed_max_count:
+                    break
             else:
+                continue
+        if len(fixed_max_measurements) != needed_max_count:
+            return None
+
+        fixed_max_measurements.sort(key=lambda m: m.GetDateTime())
+
+        rise_features = []
+        time_area_around_max = datetime.timedelta(hours=3)
+        for mm in fixed_max_measurements:
+            dt_max = mm.GetDateTime()
+            min_before = FeatureExtractor._GetMinFromTimeRange(day_measurements, dt_max - time_area_around_max, dt_max)
+            min_after = FeatureExtractor._GetMinFromTimeRange(day_measurements, dt_max, dt_max + time_area_around_max)
+            if not min_before or not min_after:
                 return None
+            rise_feature = FeatureExtractor.RiseFeature(mm, min_before, min_after)
+            rise_features.append(rise_feature)
 
-        nocturnal_minimum = min(map(lambda x: x.GetGlucoseValue(), day_measurements[index_from:]))
+        night_end = day_measurements[-1].GetDateTime() # ~05:00
+        night_start = night_end - datetime.timedelta(hours=5)
+        nocturnal_minima_measurement = FeatureExtractor._GetMinFromTimeRange(day_measurements, night_start, night_end)
+        if not nocturnal_minima_measurement:
+            return None
 
-        day_features = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minimum)
-        return day_features
+        day_feature = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minima_measurement.GetGlucoseLevel())
+        return day_feature

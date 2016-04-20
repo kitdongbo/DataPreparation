@@ -27,8 +27,7 @@ def TestExtractDayFeature():
     time_separator = datetime.datetime.strptime("05:00:00", "%H:%M:%S").time()
     measurements_per_day = FeatureExtractor.SeparateMeasurementsForDays(measurements, time_separator)
     day_measurement = measurements_per_day[1]
-    patient_context = FeatureExtractor.CalculatePatientSchedule(None)
-    day_feature = FeatureExtractor.ExtractDayFeature(patient_context, day_measurement)
+    day_feature = FeatureExtractor.ExtractDayFeature(day_measurement)
     assert day_feature
 
 TestSeparateMeasurementsForDays()

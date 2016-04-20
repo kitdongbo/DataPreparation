@@ -22,21 +22,24 @@ extremal_indexes, bla = ExtremaFilter.FindExtremalMeasurements(smooth_measuremen
 
 time_separator = datetime.datetime.strptime("05:00:00", "%H:%M:%S").time()
 measurements_per_day = FeatureExtractor.SeparateMeasurementsForDays(measurements, time_separator)
-day_measurement = measurements_per_day[1]
+rise_features = []
+for day_measurement in measurements_per_day:
+    day_feature = FeatureExtractor.ExtractDayFeature(day_measurement)
+    if day_feature:
+        rise_features.extend(day_feature.GetRiseFeatures())
 
-# 2nd - day
-gl_level_day = np.array(map(lambda x: x.GetGlucoseLevel(), day_measurement))
-datetime_day = np.array(map(lambda x: x.GetDateTime(), day_measurement))
+gl_b_level = np.array(map(lambda x: x.GetBeforeMax().GetGlucoseLevel(), rise_features))
+dt_b = np.array(map(lambda x: x.GetBeforeMax().GetDateTime(), rise_features))
+
+gl_a_level = np.array(map(lambda x: x.GetAfterMax().GetGlucoseLevel(), rise_features))
+dt_a = np.array(map(lambda x: x.GetAfterMax().GetDateTime(), rise_features))
+
+gl_m_level = np.array(map(lambda x: x.GetMax().GetGlucoseLevel(), rise_features))
+dt_m = np.array(map(lambda x: x.GetMax().GetDateTime(), rise_features))
+
 # original
 gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), measurements))
 datetime = np.array(map(lambda x: x.GetDateTime(), measurements))
-
-# smoothed
-sm_gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), smooth_measurements))
-
-# extrema
-ex_date_time = np.array(map(lambda x: measurements[x].GetDateTime(), extremal_indexes))
-ex_gl_level = np.array(map(lambda x: measurements[x].GetGlucoseLevel(), extremal_indexes))
 
 # plot settings
 fig = plt.figure()
@@ -47,7 +50,8 @@ ax.xaxis.set_major_formatter(dmyhm)
 plt.xticks(rotation='vertical')
 # plot data
 plt.plot(datetime, gl_level, c='b')
-# plt.plot(datetime, sm_gl_level, c='g')
-plt.plot(ex_date_time, ex_gl_level, 'ro')
-plt.plot(datetime_day, gl_level_day, 'g-')
+
+plt.plot(dt_b, gl_b_level, 'go')
+plt.plot(dt_m, gl_m_level, 'yo')
+plt.plot(dt_a, gl_a_level, 'ro')
 plt.show()

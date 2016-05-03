@@ -75,6 +75,10 @@ class SeriesModifier:
                      measurements, smoothed_gl)
         return result
 
+    @staticmethod
+    def EraseNulls(measurements):
+        m_without_null = [x for x in measurements if x.GetGlucoseLevel() > 5]
+        return m_without_null
 
 class FeatureExtractor:
     class RiseFeature:
@@ -254,5 +258,5 @@ class FeatureExtractor:
         if not nocturnal_minima_measurement:
             return None
 
-        day_feature = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minima_measurement.GetGlucoseLevel())
+        day_feature = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minima_measurement)
         return day_feature

@@ -10,7 +10,7 @@ from FeatureExtraction import ExtremaFilter
 from FeatureExtraction import SeriesModifier
 from FeatureExtraction import FeatureExtractor
 
-src_path = u'D:/GDrive/Диплом 2/DataPreparation/output/Patient#2/Period_from_2000-01-08__21-40.xlsx'
+src_path = u'D:/GDrive/Диплом 2/DataPreparation/output/Patient#7/Period_from_2000-07-16__9-52.xlsx'
 
 measurements = DataGetter.GetAllMeasurements(src_path,
                                              i_patient_id_column_num=1,
@@ -42,12 +42,7 @@ gl_level = np.array(map(lambda x: x.GetGlucoseLevel(), measurements))
 datetime = np.array(map(lambda x: x.GetDateTime(), measurements))
 
 # plot settings
-fig = plt.figure()
-ax = fig.add_subplot(111)
-ax.xaxis.set_major_locator(dates.HourLocator())
-dmyhm = dates.DateFormatter('%d.%m.%Y %H:%M')
-ax.xaxis.set_major_formatter(dmyhm)
-plt.xticks(rotation='vertical')
+
 # plot data
 plt.plot(datetime, gl_level, c='b')
 

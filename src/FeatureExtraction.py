@@ -1,7 +1,7 @@
 from DataGetter import PatientGlucoseMeasurement
 import numpy
 import datetime
-
+from Features import DayFeature, RiseFeature
 
 class ExtremaFilter:
     @staticmethod
@@ -31,16 +31,14 @@ class ExtremaFilter:
             return "Min"
 
     @staticmethod
-    def FindExtremalMeasurements(measurements):
-        # indexes, types
-        # type in {"Max", Min}
+    def FindExtremalMeasurements(measurements, types=('Max', 'Min')):
         just_glucose_level = map(lambda x: x.GetGlucoseLevel(), measurements)
-        extrema_views = map(lambda x, pre_x, after_x: ExtremaFilter._WhichExtremalValue(pre_x, x, after_x),
-                            just_glucose_level[1:-1], just_glucose_level[2:], just_glucose_level[:-2])
-        extrema_indexes_types = filter(lambda i_x: i_x[1] != "None", enumerate(extrema_views))
-        extremal_indexes = map(lambda i_t: i_t[0]+1, extrema_indexes_types)
-        extrema_types = map(lambda i_t: i_t[1], extrema_indexes_types)
-        return extremal_indexes, extrema_types
+        extrema_views = map(lambda pre_x, x, after_x: ExtremaFilter._WhichExtremalValue(pre_x, x, after_x),
+                            just_glucose_level[:-2],
+                            just_glucose_level[1:-1],
+                            just_glucose_level[2:])
+        result = map(lambda res_i_x: measurements[1:-1][res_i_x[0]], filter(lambda i_x: i_x[1] in types, enumerate(extrema_views)))
+        return result
 
 
 class SeriesModifier:
@@ -80,47 +78,8 @@ class SeriesModifier:
         m_without_null = [x for x in measurements if x.GetGlucoseLevel() > 5]
         return m_without_null
 
+
 class FeatureExtractor:
-    class RiseFeature:
-        def __init__(self, i_max, i_before_max, i_after_max):
-            self.m_max = i_max
-            self.m_before_max = i_before_max
-            self.m_after_max = i_after_max
-
-        def GetMax(self):
-            return self.m_max
-
-        def GetBeforeMax(self):
-            return self.m_before_max
-
-        def GetAfterMax(self):
-            return self.m_after_max
-
-        def GetRiseSpeed(self):
-            dt = self.m_max.GetDateTime() - self.m_before_max.GetDateTime()
-            dg = self.m_max.GetGlucoseLevel() - self.m_before_max.GetGlucoseLevel()
-            return dg / dt.hour()
-
-        def GetFallSpeed(self):
-            dt = self.m_after_max.GetDateTime() - self.m_max.GetDateTime()
-            dg = self.m_max.GetGlucoseLevel() - self.m_after_max.GetGlucoseLevel()
-            return dg / dt.hour()
-
-    class DayFeature:
-        def __init__(self, i_rise_features, i_nocturnal_minimum, i_hypo_val=70):
-            self.m_rise_features = i_rise_features
-            self.m_nocturnal_minimum = i_nocturnal_minimum
-            self.m_hypo_val = i_hypo_val
-
-        def GetRiseFeatures(self):
-            return self.m_rise_features
-
-        def GetNocturnalMinimum(self):
-            return self.m_nocturnal_minimum
-
-        def IsHypoglucemia(self):
-            return self.GetNocturnalMinimum() < self.m_hypo_val
-
 
     @staticmethod
     def ExtractFeatures(all_patient_measurements):
@@ -221,10 +180,7 @@ class FeatureExtractor:
         if not FeatureExtractor._IsMonotonous(day_measurements) or not FeatureExtractor._IsFullDay(day_measurements):
             return None
 
-        indexes, types = ExtremaFilter.FindExtremalMeasurements(day_measurements)
-
-        max_indexes = map(lambda x: indexes[x], filter(lambda x: types[x] == 'Max', range(0, len(types))))
-        max_measurements = map(lambda x: day_measurements[x], max_indexes)
+        max_measurements = ExtremaFilter.FindExtremalMeasurements(day_measurements, types=('Max'))
         max_measurements.sort(key=lambda m: m.GetGlucoseLevel(), reverse=True)
         needed_max_count = 3
         min_distance_between_max = datetime.timedelta(hours=5)
@@ -249,7 +205,7 @@ class FeatureExtractor:
             min_after = FeatureExtractor._GetMinFromTimeRange(day_measurements, dt_max, dt_max + time_area_around_max)
             if not min_before or not min_after:
                 return None
-            rise_feature = FeatureExtractor.RiseFeature(mm, min_before, min_after)
+            rise_feature = RiseFeature(mm, min_before, min_after)
             rise_features.append(rise_feature)
 
         night_end = day_measurements[-1].GetDateTime() # ~05:00
@@ -258,5 +214,5 @@ class FeatureExtractor:
         if not nocturnal_minima_measurement:
             return None
 
-        day_feature = FeatureExtractor.DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minima_measurement)
+        day_feature = DayFeature(rise_features, i_nocturnal_minimum=nocturnal_minima_measurement)
         return day_feature

@@ -1,5 +1,4 @@
 from DataGetter import PatientGlucoseMeasurement
-import numpy
 import datetime
 from Features import DayFeature, RiseFeature
 

@@ -222,27 +222,31 @@ class DataRefiner:
 
         ws.cell(row=cur_row, column=cur_col, value='Record Index')
         ws.cell(row=cur_row, column=cur_col+1, value='PtId')
-        cur_col += 2
+        ws.cell(row=cur_row, column=cur_col+2, value='DateTime(Fixed)')
+        cur_col += 3
         rf_count = max(map(lambda x: len(x.GetRiseFeatures()), self.m_selected_day_features))
         for rf_index in range(0, rf_count):
-            ws.cell(row=cur_row, column=cur_col, value='BeforeMax_' + str(rf_index+1) + '_Dt')
+            ws.cell(row=cur_row, column=cur_col, value='BeforeMax_' + str(rf_index+1) + '_T')
             ws.cell(row=cur_row, column=cur_col+1, value='BeforeMax_' + str(rf_index+1) + '_Gl')
-            ws.cell(row=cur_row, column=cur_col+2, value='Max_' + str(rf_index+1) + '_Dt')
+            ws.cell(row=cur_row, column=cur_col+2, value='Max_' + str(rf_index+1) + '_T')
             ws.cell(row=cur_row, column=cur_col+3, value='Max_' + str(rf_index+1) + '_Gl')
             cur_col += 4
-        ws.cell(row=cur_row, column=cur_col, value='NocturnalMin_Dt')
-        ws.cell(row=cur_row, column=cur_col+1, value='NocturnalMin_Gl')
+        ws.cell(row=cur_row, column=cur_col, value='NocMin_T')
+        ws.cell(row=cur_row, column=cur_col+1, value='NocMin_Gl')
         cur_row += 1
         cur_col = 1
 
         for ind, df in enumerate(self.m_selected_day_features, start=1):
             ws.cell(row=cur_row, column=cur_col, value=ind)
             ws.cell(row=cur_row, column=cur_col+1, value=df.GetNocturnalMinimum().GetPtId())
-            cur_col += 2
+            fixed_dt = datetime.datetime.combine(df.GetRiseFeatures()[0].GetBeforeMax().GetDateTime().date(),
+                                                 DayMeasurementsIterator.g_ts)
+            ws.cell(row=cur_row, column=cur_col+2, value=fixed_dt)
+            cur_col += 3
             for rf in df.GetRiseFeatures():
-                ws.cell(row=cur_row, column=cur_col, value=rf.GetBeforeMax().GetDateTime())
+                ws.cell(row=cur_row, column=cur_col, value=(rf.GetBeforeMax().GetDateTime()-fixed_dt).total_seconds())
                 ws.cell(row=cur_row, column=cur_col+1, value=rf.GetBeforeMax().GetGlucoseLevel())
-                ws.cell(row=cur_row, column=cur_col+2, value=rf.GetMax().GetDateTime())
+                ws.cell(row=cur_row, column=cur_col+2, value=(rf.GetMax().GetDateTime()-fixed_dt).total_seconds())
                 ws.cell(row=cur_row, column=cur_col+3, value=rf.GetMax().GetGlucoseLevel())
                 cur_col += 4
             for i in range(0, rf_count-len(df.GetRiseFeatures())):
@@ -251,7 +255,7 @@ class DataRefiner:
                 ws.cell(row=cur_row, column=cur_col+2, value='-')
                 ws.cell(row=cur_row, column=cur_col+3, value='-')
                 cur_col += 4
-            ws.cell(row=cur_row, column=cur_col, value=df.GetNocturnalMinimum().GetDateTime())
+            ws.cell(row=cur_row, column=cur_col, value=(df.GetNocturnalMinimum().GetDateTime()-fixed_dt).total_seconds())
             ws.cell(row=cur_row, column=cur_col+1, value=df.GetNocturnalMinimum().GetGlucoseLevel())
             cur_row += 1
             cur_col = 1

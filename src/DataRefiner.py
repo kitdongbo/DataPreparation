@@ -122,8 +122,7 @@ class GUI:
             self.m_on_undo_action()
 
     def AskForInputData(self):
-        root_path = tkFileDialog.askopenfilename(title='Select data to process',
-                                                 filetypes=[('Excel files', '.xlsx')])
+        root_path = tkFileDialog.askdirectory(title='Select data to process')
         return root_path
 
     def AskForFileToSave(self):
@@ -396,8 +395,8 @@ class DataRefiner:
         next_day_date = cur_ms[0].GetDateTime().date() + datetime.timedelta(days=1)
         night_start = datetime.datetime.combine(next_day_date, datetime.time(hour=0))
         night_end = datetime.datetime.combine(next_day_date, datetime.time(hour=5))
-
-        night_measurements = [x for x in cur_ms if night_start <= x.GetDateTime() <= night_end]
+        last_max = max(map(lambda pair: pair[1].GetDateTime(), [m for m in self.m_picked_measurements if m[0]=='max']))
+        night_measurements = [x for x in cur_ms if night_start <= x.GetDateTime() <= night_end and last_max <= x.GetDateTime()]
         if not night_measurements:
             return
 

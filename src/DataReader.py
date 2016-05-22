@@ -13,8 +13,9 @@ def ReadDataSet(f_path):
 
     day_features = list()
 
-    header = ws.rows[0]
-    for row in ws.rows[1:]:
+    rows = ws.rows
+    header = rows[0]
+    for row in rows[1:]:
         pt_id = None
         fixed_dt = None
         bm_t = dict()

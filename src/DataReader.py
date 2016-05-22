@@ -34,7 +34,7 @@ def ReadDataSet(f_path):
             elif col_name == "PtId":
                 pt_id = cell.value
             elif col_name == "DT_Fix":
-                fixed_dt = datetime.strptime(cell.value, '%Y-%m-%d %H:%M:%S')
+                fixed_dt = datetime.strptime(str(cell.value), '%Y-%m-%d %H:%M:%S')
             elif col_name == "NoctMin_T":
                 if cell.value == "NA":
                     continue

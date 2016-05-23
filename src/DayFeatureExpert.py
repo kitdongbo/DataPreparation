@@ -1,5 +1,6 @@
 from DayFeatureEx import DayFeatureEx
 
+
 class DayFeatureExpert:
     g_hypoglycemia = 70
 
@@ -34,3 +35,29 @@ class DayFeatureExpert:
             return False, "Invalid glucose raise"
 
         return True, ""
+
+    @staticmethod
+    def ReduceGlucoseRises(dfe, reduce_to=3):
+        if reduce_to != 3:
+            raise NotImplementedError()
+
+        if len(dfe.GetGlRises()) <= reduce_to:
+            return dfe
+
+        return DayFeatureExpert._ReduceGlucoseRisesTo3(dfe)
+
+    @staticmethod
+    def _ReduceGlucoseRisesTo3(dfe):
+        gl_rises = dfe.GetGlRises()
+        new_gl_rises = list()
+        new_gl_rises.append(gl_rises[0])
+        new_gl_rises.append(max(gl_rises[1:-1], key=lambda gl_r: gl_r[1][1] - gl_r[0][1]))
+        new_gl_rises.append(gl_rises[-1])
+
+        new_dfe = DayFeatureEx(
+            i_pt_id=dfe.GetPtId(),
+            i_fixed_dt=dfe.GetFixedDT(),
+            i_gl_rises=new_gl_rises,
+            i_nocturnal_minimum=dfe.GetNocturnalMinimum()
+        )
+        return new_dfe

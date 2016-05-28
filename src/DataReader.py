@@ -24,6 +24,12 @@ def ReadDataSet(f_path):
         m_gl = dict()
         noct_min_gl = None
         noct_min_t = None
+        ill_month = None
+        age = None
+        gender = None
+        height = None
+        weight = None
+        ins_mod = None
 
         # parse record
         debug_row_index = None
@@ -63,9 +69,23 @@ def ReadDataSet(f_path):
                     continue
                 key = int(col_name.split("Max_Gl")[1])
                 m_gl[key] = float(cell.value)
+            elif col_name.find("Ill_months") != -1:
+                ill_month = int(cell.value)
+            elif col_name.find("Age") != -1:
+                age = int(cell.value)
+            elif col_name.find("Gender") != -1:
+                if str(cell.value) in ("M", "F"):
+                    gender = str(cell.value)
+            elif col_name.find("Height") != -1:
+                height = float(cell.value)
+            elif col_name.find("Weight") != -1:
+                weight = float(cell.value)
+            elif col_name.find("InsMod") != -1:
+                if str(cell.value) in ("injection", "pump"):
+                    ins_mod = str(cell.value)
 
         # checking parsed data
-        if not (pt_id and fixed_dt and bm_t and m_t and bm_gl and m_gl and noct_min_gl and noct_min_t):
+        if not (pt_id and fixed_dt and bm_t and m_t and bm_gl and m_gl and noct_min_gl and noct_min_t and ill_month and age and gender and height and weight and ins_mod):
             print str(debug_row_index) + ": corrupted row"
             continue
 
@@ -87,7 +107,7 @@ def ReadDataSet(f_path):
             glucose_rises.append(((bm_t[key], bm_gl[key]), (m_t[key], m_gl[key])))
 
         noct_minimum = (noct_min_t, noct_min_gl)
-        dfe = DayFeatureEx(pt_id, fixed_dt, glucose_rises, noct_minimum)
+        dfe = DayFeatureEx(pt_id, fixed_dt, glucose_rises, noct_minimum, ill_month, age, gender, height, weight, ins_mod)
 
         is_valid, why_invalid_msg = DayFeatureExpert.IsFeatureValid(dfe)
         if not is_valid:

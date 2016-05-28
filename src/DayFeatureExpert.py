@@ -6,11 +6,20 @@ class DayFeatureExpert:
 
     @staticmethod
     def IsHypoglycemia(dfe):
-        return dfe.GetNocturnalMinimum() < DayFeatureExpert.g_hypoglycemia
+        return dfe.GetNocturnalMinimum()[1] < DayFeatureExpert.g_hypoglycemia
 
     @staticmethod
     def IsFeatureValid(dfe):
-        if not (dfe.GetPtId() and dfe.GetFixedDT() and dfe.GetGlRises() and dfe.GetNocturnalMinimum()):
+        if not (dfe.GetPtId() and
+                dfe.GetFixedDT() and
+                dfe.GetGlRises() and
+                dfe.GetNocturnalMinimum() and
+                dfe.GetIllMonths() and
+                dfe.GetAge() and
+                dfe.GetGender() and
+                dfe.GetHeight() and
+                dfe.GetWeight() and
+                dfe.GetInsMod()):
             return False, "One of field is empty"
 
         is_monotonous_measurements = True

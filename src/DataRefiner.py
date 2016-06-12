@@ -20,7 +20,7 @@ import pickle
 from openpyxl import Workbook
 
 class DayMeasurementsIterator:
-    g_ts = datetime.datetime.strptime("05:00:00", "%H:%M:%S").time()
+    g_ts = datetime.datetime.strptime("06:00:00", "%H:%M:%S").time()
 
     def __init__(self, root_path):
         self.m_files = list()

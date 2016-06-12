@@ -22,9 +22,12 @@ def ReadDataSet(f_path):
         m_t = dict()
         bm_gl = dict()
         m_gl = dict()
+        m_speed = dict()
+        the_last_before_bed = None
+        bmi = None
         noct_min_gl = None
         noct_min_t = None
-        ill_month = None
+        Ill_years = None
         age = None
         gender = None
         height = None
@@ -69,8 +72,12 @@ def ReadDataSet(f_path):
                     continue
                 key = int(col_name.split("Max_Gl")[1])
                 m_gl[key] = float(cell.value)
-            elif col_name.find("Ill_months") != -1:
-                ill_month = int(cell.value)
+            elif col_name == "TheLastBeforeBed":
+                the_last_before_bed = float(cell.value)
+            elif col_name == "BMI":
+                bmi = float(cell.value)
+            elif col_name.find("Ill_years") != -1:
+                Ill_years = int(cell.value)
             elif col_name.find("Age") != -1:
                 age = int(cell.value)
             elif col_name.find("Gender") != -1:
@@ -83,19 +90,23 @@ def ReadDataSet(f_path):
             elif col_name.find("InsMod") != -1:
                 if str(cell.value) in ("injection", "pump"):
                     ins_mod = str(cell.value)
-
+            elif col_name.find("V") != -1:
+                key = int(col_name.split("V")[1])
+                m_speed[key] = float(cell.value)
         # checking parsed data
-        if not (pt_id and fixed_dt and bm_t and m_t and bm_gl and m_gl and noct_min_gl and noct_min_t and ill_month and age and gender and height and weight and ins_mod):
+        if not (pt_id and fixed_dt and
+                bm_t and m_t and bm_gl and m_gl and noct_min_gl and noct_min_t and m_speed and the_last_before_bed and
+                Ill_years and age and gender and height and weight and ins_mod and bmi):
             print str(debug_row_index) + ": corrupted row"
             continue
 
-        if not (len(bm_t) == len(m_t) == len(bm_gl) == len(m_gl)):
+        if not (len(bm_t) == len(m_t) == len(bm_gl) == len(m_gl) == len(m_speed)):
             print str(debug_row_index) + ": not full rises data"
             continue
 
         is_ok = True
         for key in range(1, len(bm_t) + 1):
-            if not (key in m_t.keys() and key in bm_gl.keys() and key in m_gl.keys()):
+            if not (key in m_t.keys() and key in bm_gl.keys() and key in m_gl.keys() and key in m_speed.keys()):
                 is_ok = False
                 break
         if not is_ok:
@@ -103,11 +114,25 @@ def ReadDataSet(f_path):
             continue
 
         glucose_rises = list()
+        speeds = list()
         for key in range(1, len(bm_t) + 1):
             glucose_rises.append(((bm_t[key], bm_gl[key]), (m_t[key], m_gl[key])))
+            speeds.append(m_speed[key])
 
         noct_minimum = (noct_min_t, noct_min_gl)
-        dfe = DayFeatureEx(pt_id, fixed_dt, glucose_rises, noct_minimum, ill_month, age, gender, height, weight, ins_mod)
+        dfe = DayFeatureEx(i_pt_id=pt_id,
+                           i_fixed_dt=fixed_dt,
+                           i_gl_rises=glucose_rises,
+                           i_last_before_bed=the_last_before_bed,
+                           i_nocturnal_minimum=noct_minimum,
+                           i_gl_rise_speeds=speeds,
+                           i_ill_years=Ill_years,
+                           i_age=age,
+                           i_gender=gender,
+                           i_height=height,
+                           i_weight=weight,
+                           i_ins_mod=ins_mod,
+                           i_bmi=bmi)
 
         is_valid, why_invalid_msg = DayFeatureExpert.IsFeatureValid(dfe)
         if not is_valid:
